@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: hotelhex-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hotelhex
+      POSTGRES_PASSWORD: hotelhex
+      POSTGRES_DB: hotelhex
+    ports:
+      - "5432:5432"
+    volumes:
+      - hotelhex-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotelhex -d hotelhex"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: hotelhex-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://hotelhex:hotelhex@db:5432/hotelhex?schema=public
+      PORT: 4000
+      WEB_ORIGIN: http://localhost:3000
+      GUEST_ENCRYPTION_KEY: ${GUEST_ENCRYPTION_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: hotelhex-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api
+      PORT: 3000
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "3000:3000"
+volumes:
+  hotelhex-postgres-data:
+

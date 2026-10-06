@@ -1,0 +1,1414 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String       @id @default(cuid())
+  username    String       @unique
+  email       String?      @unique
+  phone       String?
+  jobTitle    String?
+  department  String?
+  passwordHash String?
+  status      UserStatus   @default(PENDING)
+  mustChangePassword Boolean @default(false)
+  failedLoginAttempts Int @default(0)
+  lockedUntil DateTime?
+  lastLoginAt DateTime?
+  defaultCompanyId String?
+  defaultPropertyId String?
+  defaultBranchId String?
+  name        String
+  role        UserRole     @default(STAFF)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  auditLogs   AuditLog[]
+  branchLinks UserBranch[]
+  roleAssignments UserRoleAssignment[]
+  sessions UserSession[]
+  loginHistory LoginHistory[]
+  performedAudits AuditLog[] @relation("AuditPerformedBy")
+}
+
+model BusinessGroup {
+  guests Guest[]
+  reservations Reservation[]
+  stays FrontDeskStay[]
+  id                 String    @id @default(cuid())
+  code               String    @unique
+  name               String
+  registrationName   String?
+  registrationNumber String?
+  country            String?
+  phone              String?
+  email              String?
+  website            String?
+  description        String?
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  companies          Company[]
+}
+
+model Company {
+  stays FrontDeskStay[]
+  id                   String        @id @default(cuid())
+  code                 String
+  legalName            String
+  tradingName          String?
+  registrationNumber   String?
+  taxRegistrationNumber String?
+  businessType         String?
+  country              String?
+  defaultCurrencyId    String?
+  defaultLanguage      String?       @default("en")
+  timeZone             String?       @default("Asia/Yangon")
+  phone                String?
+  email                String?
+  website              String?
+  addressLine1         String?
+  addressLine2         String?
+  city                 String?
+  stateRegion          String?
+  postalCode           String?
+  status               CompanyStatus @default(ACTIVE)
+  groupId              String
+  group                BusinessGroup @relation(fields: [groupId], references: [id])
+  defaultCurrency      Currency?     @relation("CompanyDefaultCurrency", fields: [defaultCurrencyId], references: [id])
+  properties           Property[]
+  departments          Department[]
+  costCenters          CostCenter[]
+  profitCenters        ProfitCenter[]
+  financialYears       FinancialYear[]
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  @@unique([groupId, code])
+}
+
+model Property {
+  reservations Reservation[]
+  stays FrontDeskStay[]
+  rooms          Room[]
+  roomTypes      RoomType[]
+  bedTypes       BedType[]
+  amenities      Amenity[]
+  roomFeatures   RoomFeature[]
+  id             String         @id @default(cuid())
+  code           String
+  name           String
+  type           PropertyType   @default(HOTEL)
+  starRating     Int?
+  openingDate    DateTime?
+  numberOfRooms  Int?
+  phone          String?
+  email          String?
+  website        String?
+  timeZone       String?        @default("Asia/Yangon")
+  defaultCurrencyId String?
+  checkInTime    String?        @default("14:00")
+  checkOutTime   String?        @default("12:00")
+  status         PropertyStatus @default(PRE_OPENING)
+  companyId      String
+  company        Company        @relation(fields: [companyId], references: [id])
+  defaultCurrency Currency?     @relation("PropertyDefaultCurrency", fields: [defaultCurrencyId], references: [id])
+  branches       Branch[]
+  buildings      Building[]
+  departments    Department[]
+  businessDates  BusinessDate[]
+  ratePlans      RatePlan[]
+  stayPolicy     PropertyStayPolicy?
+  rateSeasons    RateSeason[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  @@unique([companyId, code])
+}
+
+model Branch {
+  reservations Reservation[]
+  stays FrontDeskStay[]
+  rooms           Room[]
+  roomTypes       RoomType[]
+  id              String       @id @default(cuid())
+  code            String
+  name            String
+  type            BranchType   @default(HOTEL)
+  addressLine1    String?
+  addressLine2    String?
+  city            String?
+  stateRegion     String?
+  postalCode      String?
+  country         String?
+  phone           String?
+  email           String?
+  openingDate     DateTime?
+  operatingHours  Json?
+  currencyCode    String?
+  taxConfiguration Json?
+  isMain          Boolean      @default(false)
+  status          BranchStatus @default(ACTIVE)
+  propertyId      String
+  property        Property     @relation(fields: [propertyId], references: [id])
+  buildings       Building[]
+  departments     Department[]
+  costCenters     CostCenter[]
+  profitCenters   ProfitCenter[]
+  businessDates   BusinessDate[]
+  numberSequences NumberSequence[]
+  settings        BranchSetting[]
+  userLinks       UserBranch[]
+  @@unique([propertyId, code])
+}
+
+model Building {
+  rooms      Room[]
+  id         String   @id @default(cuid())
+  code       String
+  name       String
+  description String?
+  isActive   Boolean  @default(true)
+  propertyId String
+  branchId   String?
+  property   Property @relation(fields: [propertyId], references: [id])
+  branch     Branch?  @relation(fields: [branchId], references: [id])
+  floors     Floor[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  @@unique([propertyId, code])
+}
+
+model Floor {
+  rooms       Room[]
+  id          String   @id @default(cuid())
+  code        String
+  name        String
+  floorNumber Int
+  description String?
+  isActive    Boolean  @default(true)
+  buildingId  String
+  building    Building @relation(fields: [buildingId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@unique([buildingId, code])
+}
+
+model Department {
+  id             String       @id @default(cuid())
+  code           String
+  name           String
+  description    String?
+  status         RecordStatus @default(ACTIVE)
+  companyId      String
+  propertyId     String?
+  branchId       String?
+  parentId       String?
+  managerId      String?
+  company        Company      @relation(fields: [companyId], references: [id])
+  property       Property?    @relation(fields: [propertyId], references: [id])
+  branch         Branch?      @relation(fields: [branchId], references: [id])
+  parent         Department?  @relation("DepartmentTree", fields: [parentId], references: [id])
+  children       Department[] @relation("DepartmentTree")
+  costCenters    CostCenter[]
+  profitCenters  ProfitCenter[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  @@unique([branchId, code])
+}
+
+model CostCenter {
+  id           String       @id @default(cuid())
+  code         String
+  name         String
+  description  String?
+  status       RecordStatus @default(ACTIVE)
+  companyId    String
+  propertyId   String?
+  branchId     String?
+  departmentId String?
+  company      Company      @relation(fields: [companyId], references: [id])
+  department   Department?  @relation(fields: [departmentId], references: [id])
+  branch       Branch?      @relation(fields: [branchId], references: [id])
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  @@unique([companyId, code])
+}
+
+model ProfitCenter {
+  id           String       @id @default(cuid())
+  code         String
+  name         String
+  status       RecordStatus @default(ACTIVE)
+  companyId    String
+  propertyId   String?
+  branchId     String?
+  departmentId String?
+  company      Company      @relation(fields: [companyId], references: [id])
+  department   Department?  @relation(fields: [departmentId], references: [id])
+  branch       Branch?      @relation(fields: [branchId], references: [id])
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  @@unique([companyId, code])
+}
+
+model Currency {
+  id             String     @id @default(cuid())
+  code           String     @unique
+  name           String
+  symbol         String?
+  decimalPlaces  Int        @default(2)
+  exchangeRate   Decimal?   @db.Decimal(18, 6)
+  effectiveDate  DateTime?
+  isActive       Boolean    @default(true)
+  companyDefaults Company[] @relation("CompanyDefaultCurrency")
+  propertyDefaults Property[] @relation("PropertyDefaultCurrency")
+  taxes          Tax[]
+}
+
+model Tax {
+  id            String       @id @default(cuid())
+  code          String
+  name          String
+  rate          Decimal      @db.Decimal(8, 4)
+  calculation   TaxCalculation @default(EXCLUSIVE)
+  effectiveDate DateTime?
+  expiryDate    DateTime?
+  isActive      Boolean      @default(true)
+  companyId     String?
+  branchId      String?
+  currencyId    String?
+  currency      Currency?    @relation(fields: [currencyId], references: [id])
+  @@unique([companyId, branchId, code])
+}
+
+model FinancialYear {
+  id        String       @id @default(cuid())
+  code      String
+  startDate DateTime
+  endDate   DateTime
+  status    RecordStatus @default(ACTIVE)
+  companyId String
+  company   Company      @relation(fields: [companyId], references: [id])
+  @@unique([companyId, code])
+}
+
+model BusinessDate {
+  id         String   @id @default(cuid())
+  propertyId String
+  branchId   String
+  date       DateTime
+  property   Property @relation(fields: [propertyId], references: [id])
+  branch     Branch   @relation(fields: [branchId], references: [id])
+  updatedAt  DateTime @updatedAt
+  @@unique([propertyId, branchId])
+}
+
+model NumberSequence {
+  id            String        @id @default(cuid())
+  documentType  String
+  prefix        String?
+  branchCode    String?
+  yearIncluded  Boolean       @default(true)
+  sequenceLength Int           @default(6)
+  resetFrequency ResetFrequency @default(YEARLY)
+  nextNumber    Int           @default(1)
+  branchId      String
+  branch        Branch        @relation(fields: [branchId], references: [id])
+  @@unique([branchId, documentType])
+}
+
+model BranchSetting {
+  id       String @id @default(cuid())
+  key      String
+  value    String?
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+  @@unique([branchId, key])
+}
+
+model UserBranch {
+  id         String   @id @default(cuid())
+  userId     String
+  branchId   String
+  isDefault  Boolean  @default(false)
+  user       User     @relation(fields: [userId], references: [id])
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  @@unique([userId, branchId])
+}
+
+
+model Role {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  roleType    RoleType @default(CUSTOM)
+  scope       AccessScope @default(TENANT)
+  status      RecordStatus @default(ACTIVE)
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  permissions RolePermission[]
+  assignments UserRoleAssignment[]
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  module      String
+  resource    String
+  action      String
+  description String?
+  isActive    Boolean  @default(true)
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@id([roleId, permissionId])
+}
+
+model UserRoleAssignment {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  userId     String
+  roleId     String
+  companyId  String?
+  propertyId String?
+  branchId   String?
+  effectiveFrom DateTime?
+  effectiveTo DateTime?
+  isActive   Boolean  @default(true)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id])
+  @@index([userId, isActive])
+  @@index([branchId])
+}
+
+model UserSession {
+  id           String   @id @default(cuid())
+  userId       String
+  tokenHash    String   @unique
+  loginAt      DateTime @default(now())
+  lastActivity DateTime @default(now())
+  expiresAt    DateTime
+  ipAddress    String?
+  userAgent    String?
+  isActive     Boolean  @default(true)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LoginHistory {
+  id        String   @id @default(cuid())
+  userId    String?
+  username  String
+  success   Boolean
+  reason    String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  @@index([username, createdAt])
+}
+
+model Menu {
+  id                 String   @id @default(cuid())
+  code               String   @unique
+  name               String
+  parentId           String?
+  route              String?
+  icon               String?
+  displayOrder       Int      @default(0)
+  requiredPermission String?
+  isActive           Boolean  @default(true)
+  parent             Menu?    @relation("MenuTree", fields: [parentId], references: [id])
+  children           Menu[]   @relation("MenuTree")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  entity     String
+  recordId   String
+  action     AuditAction
+  oldValue   Json?
+  newValue   Json?
+  branchId   String?
+  userId     String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id])
+  performedBy User?   @relation("AuditPerformedBy", fields: [performedById], references: [id])
+  performedById String?
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+model BedType {
+  id String @id @default(cuid())
+  propertyId String
+  property Property @relation(fields: [propertyId], references: [id])
+  code String
+  name String
+  description String?
+  capacity Int @default(1)
+  isActive Boolean @default(true)
+  version Int @default(1)
+  roomTypes RoomType[]
+  @@unique([propertyId, code])
+}
+
+model Amenity {
+  id String @id @default(cuid())
+  propertyId String
+  property Property @relation(fields: [propertyId], references: [id])
+  code String
+  name String
+  category String @default("Other")
+  description String?
+  isActive Boolean @default(true)
+  version Int @default(1)
+  roomTypes RoomType[]
+  @@unique([propertyId, code])
+}
+
+model RoomFeature {
+  id String @id @default(cuid())
+  propertyId String
+  property Property @relation(fields: [propertyId], references: [id])
+  code String
+  name String
+  description String?
+  isActive Boolean @default(true)
+  version Int @default(1)
+  rooms Room[]
+  @@unique([propertyId, code])
+}
+
+model RoomType {
+  frontDeskStays FrontDeskStay[]
+  reservationLines Reservation[]
+  id String @id @default(cuid())
+  propertyId String
+  property Property @relation(fields: [propertyId], references: [id])
+  branchId String?
+  branch Branch? @relation(fields: [branchId], references: [id])
+  code String
+  name String
+  description String?
+  bedTypeId String?
+  bedType BedType? @relation(fields: [bedTypeId], references: [id])
+  numberOfBeds Int @default(1)
+  baseAdults Int @default(1)
+  baseChildren Int @default(0)
+  maxAdults Int @default(2)
+  maxChildren Int @default(0)
+  maxOccupancy Int @default(2)
+  extraBedAllowed Boolean @default(false)
+  maxExtraBeds Int @default(0)
+  roomSize Float?
+  roomSizeUnit String @default("SQM")
+  smokingPolicy String @default("NON_SMOKING")
+  displayOrder Int @default(0)
+  isActive Boolean @default(true)
+  version Int @default(1)
+  amenities Amenity[]
+  rooms Room[]
+  rates RatePlanRoomType[]
+  rateCalendar RateCalendar[]
+  hourlyTiers HourlyRateTier[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([propertyId, code])
+}
+
+model Room {
+  stayKeys StayKey[]
+  staysTo StayRoomHistory[] @relation("StayToRoom")
+  staysFrom StayRoomHistory[] @relation("StayFromRoom")
+  currentStays FrontDeskStay[] @relation("StayCurrentRoom")
+  reservationAssignments Reservation[]
+  id String @id @default(cuid())
+  propertyId String
+  property Property @relation(fields: [propertyId], references: [id])
+  branchId String
+  branch Branch @relation(fields: [branchId], references: [id])
+  buildingId String
+  building Building @relation(fields: [buildingId], references: [id])
+  floorId String
+  floor Floor @relation(fields: [floorId], references: [id])
+  roomTypeId String
+  roomType RoomType @relation(fields: [roomTypeId], references: [id])
+  roomNumber String
+  roomName String?
+  internalCode String?
+  phoneExtension String?
+  smokingType String @default("NON_SMOKING")
+  isAccessible Boolean @default(false)
+  viewType String?
+  roomSize Float?
+  housekeepingZone String?
+  maintenanceZone String?
+  operationalStatus RoomOperationalStatus @default(VACANT_DIRTY)
+  isActive Boolean @default(true)
+  version Int @default(1)
+  features RoomFeature[]
+  holds RoomHold[]
+  notes RoomNote[]
+  history RoomStatusHistory[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([propertyId, roomNumber])
+  @@index([propertyId, branchId, operationalStatus])
+  @@index([buildingId, floorId])
+  @@index([roomTypeId])
+}
+
+model RoomHold {
+  id String @id @default(cuid())
+  roomId String
+  room Room @relation(fields: [roomId], references: [id])
+  kind RoomHoldKind
+  startAt DateTime
+  expectedEndAt DateTime?
+  reasonCode String?
+  reason String
+  description String?
+  maintenanceReference String?
+  createdBy String
+  createdAt DateTime @default(now())
+  releasedAt DateTime?
+  releasedBy String?
+  releaseNotes String?
+  version Int @default(1)
+  @@index([roomId, startAt, releasedAt])
+}
+
+model RoomStatusHistory {
+  id String @id @default(cuid())
+  roomId String
+  room Room @relation(fields: [roomId], references: [id])
+  previousStatus String?
+  newStatus String
+  reason String
+  sourceModule String @default("ROOM_ADMIN")
+  changedBy String
+  changedAt DateTime @default(now())
+  @@index([roomId, changedAt])
+}
+
+model RoomNote {
+  id String @id @default(cuid())
+  roomId String
+  room Room @relation(fields: [roomId], references: [id])
+  noteType String @default("GENERAL")
+  text String
+  createdBy String
+  createdAt DateTime @default(now())
+  @@index([roomId, createdAt])
+}
+
+enum RoomOperationalStatus {
+  VACANT_CLEAN
+  VACANT_DIRTY
+  OCCUPIED_CLEAN
+  OCCUPIED_DIRTY
+  CLEANING
+  INSPECTED
+}
+
+enum RoomHoldKind {
+  OOO
+  OOS
+}
+enum UserStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  LOCKED
+  SUSPENDED
+}
+enum RoleType {
+  SYSTEM
+  CUSTOM
+  TEMPLATE
+}
+enum AccessScope {
+  TENANT
+  GROUP
+  COMPANY
+  PROPERTY
+  BRANCH
+}
+enum CompanyStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+enum PropertyType {
+  HOTEL
+  RESORT
+  BOUTIQUE_HOTEL
+  HOSTEL
+  SERVICED_APARTMENT
+  GUEST_HOUSE
+  VILLA
+  OTHER
+}
+enum PropertyStatus {
+  PRE_OPENING
+  ACTIVE
+  TEMPORARILY_CLOSED
+  INACTIVE
+}
+enum BranchType {
+  HOTEL
+  RESTAURANT
+  SPA
+  RESORT
+  WAREHOUSE
+  HEAD_OFFICE
+  CENTRAL_KITCHEN
+  EVENT_CENTER
+  OTHER
+}
+enum BranchStatus {
+  ACTIVE
+  INACTIVE
+  TEMPORARILY_CLOSED
+}
+enum RecordStatus {
+  ACTIVE
+  INACTIVE
+}
+enum TaxCalculation {
+  EXCLUSIVE
+  INCLUSIVE
+}
+enum ResetFrequency {
+  NEVER
+  YEARLY
+  MONTHLY
+  DAILY
+}
+enum AuditAction {
+  CREATE
+  UPDATE
+  ACTIVATE
+  DEACTIVATE
+  PASSWORD_RESET
+  PASSWORD_CHANGE
+  ACCOUNT_LOCKED
+  ACCOUNT_UNLOCKED
+  PERMISSION_ASSIGN
+  ROLE_ASSIGNED
+  ROLE_REMOVED
+  LOGIN
+  LOGOUT
+}
+
+model RatePlan {
+  reservations Reservation[]
+  id String @id @default(cuid())
+  propertyId String
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  branchId String?
+  code String
+  name String
+  description String?
+  rateType String @default("PUBLIC")
+  stayType String @default("OVERNIGHT")
+  currencyCode String
+  mealPlan String @default("RO")
+  refundability String @default("REFUNDABLE")
+  cancellationPolicy String?
+  depositPolicy String?
+  taxInclusive Boolean @default(false)
+  serviceChargeIncluded Boolean @default(false)
+  isPublic Boolean @default(true)
+  bookingStart DateTime?
+  bookingEnd DateTime?
+  effectiveFrom DateTime?
+  effectiveTo DateTime?
+  status String @default("DRAFT")
+  displayOrder Int @default(0)
+  roomRates RatePlanRoomType[]
+  calendar RateCalendar[]
+  seasons RateSeason[]
+  restrictions RateRestriction[]
+  hourlyTiers HourlyRateTier[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([propertyId, code])
+  @@index([propertyId, status, stayType])
+}
+
+model RatePlanRoomType {
+  id String @id @default(cuid())
+  ratePlanId String
+  ratePlan RatePlan @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
+  roomTypeId String
+  roomType RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  baseOccupancy Int @default(1)
+  baseAdults Int @default(1)
+  baseChildren Int @default(0)
+  basePrice Decimal @db.Decimal(18, 2)
+  weekdayAdjustment Decimal @default(0) @db.Decimal(8, 2)
+  weekendAdjustment Decimal @default(0) @db.Decimal(8, 2)
+  extraAdultCharge Decimal @default(0) @db.Decimal(18, 2)
+  extraChildCharge Decimal @default(0) @db.Decimal(18, 2)
+  extraBedCharge Decimal @default(0) @db.Decimal(18, 2)
+  minStay Int @default(1)
+  maxStay Int?
+  minAdvanceDays Int?
+  maxAdvanceDays Int?
+  isActive Boolean @default(true)
+  effectiveFrom DateTime?
+  effectiveTo DateTime?
+  calendar RateCalendar[]
+  restrictions RateRestriction[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([ratePlanId, roomTypeId])
+  @@index([roomTypeId, isActive])
+}
+
+model RateCalendar {
+  id String @id @default(cuid())
+  ratePlanId String
+  ratePlan RatePlan @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
+  ratePlanRoomTypeId String
+  ratePlanRoomType RatePlanRoomType @relation(fields: [ratePlanRoomTypeId], references: [id], onDelete: Cascade)
+  roomTypeId String
+  roomType RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  stayDate DateTime @db.Date
+  price Decimal @db.Decimal(18, 2)
+  minStay Int?
+  maxStay Int?
+  closedToArrival Boolean @default(false)
+  closedToDeparture Boolean @default(false)
+  isOverride Boolean @default(false)
+  updatedById String?
+  updatedAt DateTime @updatedAt
+  @@unique([ratePlanId, roomTypeId, stayDate])
+  @@index([ratePlanId, stayDate])
+}
+
+model RateSeason {
+  id String @id @default(cuid())
+  propertyId String
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  ratePlanId String
+  ratePlan RatePlan @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
+  code String
+  name String
+  startDate DateTime @db.Date
+  endDate DateTime @db.Date
+  adjustmentType String @default("PERCENT")
+  adjustmentValue Decimal @db.Decimal(18, 2)
+  priority Int @default(0)
+  status String @default("ACTIVE")
+  createdAt DateTime @default(now())
+  @@index([propertyId, startDate, endDate])
+}
+
+model RateRestriction {
+  id String @id @default(cuid())
+  ratePlanId String
+  ratePlan RatePlan @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
+  ratePlanRoomTypeId String?
+  ratePlanRoomType RatePlanRoomType? @relation(fields: [ratePlanRoomTypeId], references: [id], onDelete: Cascade)
+  startDate DateTime @db.Date
+  endDate DateTime @db.Date
+  minStay Int?
+  maxStay Int?
+  closedToArrival Boolean @default(false)
+  closedToDeparture Boolean @default(false)
+  blackout Boolean @default(false)
+  createdAt DateTime @default(now())
+  @@index([ratePlanId, startDate, endDate])
+}
+
+model PropertyStayPolicy {
+  id String @id @default(cuid())
+  propertyId String @unique
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  allowOvernight Boolean @default(true)
+  allowHourly Boolean @default(false)
+  allowDayUse Boolean @default(false)
+  defaultStayType String @default("OVERNIGHT")
+  weekendDayMask Int @default(96)
+  dayUseStartTime String @default("08:00")
+  dayUseEndTime String @default("18:00")
+  latestDayUseCheckInTime String @default("16:00")
+  maxHourlyDurationMinutes Int @default(720)
+  allowCrossMidnightHourly Boolean @default(false)
+  gracePeriodMinutes Int @default(15)
+  extensionPolicyType String @default("PER_HOUR")
+  extensionCharge Decimal @default(0) @db.Decimal(18, 2)
+  turnaroundBufferMinutes Int @default(30)
+  updatedAt DateTime @updatedAt
+}
+
+model HourlyRateTier {
+  id String @id @default(cuid())
+  ratePlanId String
+  ratePlan RatePlan @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
+  roomTypeId String
+  roomType RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  durationMinutes Int
+  price Decimal @db.Decimal(18, 2)
+  applicableDayMask Int @default(127)
+  startTime String?
+  endTime String?
+  effectiveFrom DateTime?
+  effectiveTo DateTime?
+  extensionType String @default("PER_HOUR")
+  extensionUnitMinutes Int @default(60)
+  extensionCharge Decimal @default(0) @db.Decimal(18, 2)
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  @@unique([ratePlanId, roomTypeId, durationMinutes])
+  @@index([roomTypeId, isActive])
+}
+
+model RateOverride {
+  id String @id @default(cuid())
+  ratePlanId String
+  propertyId String
+  roomTypeId String
+  originalAmount Decimal @db.Decimal(18, 2)
+  overrideAmount Decimal @db.Decimal(18, 2)
+  reason String
+  userId String
+  approvedById String?
+  createdAt DateTime @default(now())
+  @@index([propertyId, createdAt])
+  @@index([ratePlanId, createdAt])
+}
+model Guest {
+  reservations Reservation[]
+  reservationGuests ReservationGuest[]
+  frontDeskStays FrontDeskStay[]
+  registrations GuestRegistration[]
+  stayOccupants StayOccupant[]
+  id String @id @default(cuid())
+  tenantId String
+  tenant BusinessGroup @relation(fields: [tenantId], references: [id])
+  guestNumber String
+  fullName String
+  normalizedName String
+  title String?
+  firstName String?
+  middleName String?
+  lastName String?
+  displayName String?
+  dateOfBirth DateTime?
+  gender String?
+  nationality String?
+  preferredLanguage String?
+  occupation String?
+  company String?
+  guestType String @default("Individual")
+  status String @default("ACTIVE")
+  preferredContactMethod String @default("None")
+  createdPropertyId String
+  createdBy String
+  updatedBy String
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  contacts GuestContact[]
+  addresses GuestAddress[]
+  identities GuestIdentity[]
+  preferences GuestPreference[]
+  notes GuestNote[]
+  vip GuestVip?
+  audits GuestAudit[]
+  @@unique([tenantId, guestNumber])
+  @@index([tenantId, normalizedName])
+  @@index([tenantId, status, createdAt])
+}
+
+model GuestSequence {
+  tenantId String
+  year Int
+  nextNumber Int @default(1)
+  @@id([tenantId, year])
+}
+
+model GuestContact {
+  id String @id @default(cuid())
+  guestId String
+  guest Guest @relation(fields: [guestId], references: [id])
+  type String
+  value String
+  normalizedValue String
+  isPrimary Boolean @default(false)
+  isActive Boolean @default(true)
+  @@index([normalizedValue, guestId])
+}
+
+model GuestAddress {
+  id String @id @default(cuid())
+  guestId String
+  guest Guest @relation(fields: [guestId], references: [id])
+  type String @default("Home")
+  line1 String
+  line2 String?
+  city String?
+  stateRegion String?
+  postalCode String?
+  country String?
+  isPrimary Boolean @default(false)
+  isActive Boolean @default(true)
+  @@index([guestId])
+}
+
+model GuestIdentity {
+  id String @id @default(cuid())
+  guestId String
+  guest Guest @relation(fields: [guestId], references: [id])
+  type String
+  numberEncrypted String
+  numberHash String
+  maskedNumber String
+  countryOfIssue String?
+  issueDate DateTime?
+  expiryDate DateTime?
+  isPrimary Boolean @default(false)
+  isActive Boolean @default(true)
+  registrations GuestRegistration[]
+  @@index([numberHash, guestId])
+}
+
+model GuestPreference {
+  id String @id @default(cuid())
+  guestId String
+  guest Guest @relation(fields: [guestId], references: [id])
+  propertyId String?
+  branchId String?
+  type String
+  value String
+  priority String @default("Normal")
+  notes String?
+  isActive Boolean @default(true)
+  @@index([guestId, propertyId, branchId])
+}
+
+model GuestNote {
+  id String @id @default(cuid())
+  guestId String
+  guest Guest @relation(fields: [guestId], references: [id])
+  propertyId String?
+  branchId String?
+  type String
+  text String
+  visibility String @default("PROPERTY")
+  department String?
+  isResolved Boolean @default(false)
+  isActive Boolean @default(true)
+  createdBy String
+  createdAt DateTime @default(now())
+  @@index([guestId, propertyId, branchId])
+}
+
+model GuestVip {
+  id String @id @default(cuid())
+  guestId String @unique
+  guest Guest @relation(fields: [guestId], references: [id])
+  level String
+  effectiveFrom DateTime?
+  effectiveTo DateTime?
+  reason String?
+  approvedBy String
+  isActive Boolean @default(true)
+}
+
+model GuestAudit {
+  id String @id @default(cuid())
+  guestId String
+  guest Guest @relation(fields: [guestId], references: [id])
+  tenantId String
+  propertyId String
+  branchId String?
+  action String
+  resource String
+  oldValue Json?
+  newValue Json?
+  performedBy String
+  createdAt DateTime @default(now())
+  @@index([tenantId, guestId, createdAt])
+}
+
+model GuestConfiguration {
+  id String @id @default(cuid())
+  tenantId String
+  category String
+  name String
+  isActive Boolean @default(true)
+  @@unique([tenantId, category, name])
+}
+
+model ReservationSequence {
+  propertyId String
+  branchId String
+  year Int
+  nextNumber Int @default(2)
+  @@id([propertyId, branchId, year])
+}
+
+model ReservationCatalog {
+  id String @id @default(cuid())
+  propertyId String
+  branchId String?
+  category String
+  code String
+  name String
+  isActive Boolean @default(true)
+  @@unique([propertyId, branchId, category, code])
+  @@index([propertyId, category, isActive])
+}
+
+model Reservation {
+  id String @id @default(cuid())
+  tenantId String
+  tenant BusinessGroup @relation(fields: [tenantId], references: [id])
+  propertyId String
+  property Property @relation(fields: [propertyId], references: [id])
+  companyId String
+  branchId String
+  branch Branch @relation(fields: [branchId], references: [id])
+  reservationNumber String
+  primaryGuestId String
+  primaryGuest Guest @relation(fields: [primaryGuestId], references: [id])
+  guestNameSnapshot String
+  contactPhoneSnapshot String?
+  contactEmailSnapshot String?
+  reservationType String @default("Individual")
+  bookingSource String
+  marketSegment String?
+  externalReference String?
+  stayType String
+  status String @default("TENTATIVE")
+  arrivalDateTime DateTime
+  departureDateTime DateTime
+  adults Int @default(1)
+  children Int @default(0)
+  infants Int @default(0)
+  roomCount Int @default(1)
+  roomTypeId String
+  roomType RoomType @relation(fields: [roomTypeId], references: [id])
+  ratePlanId String
+  ratePlan RatePlan @relation(fields: [ratePlanId], references: [id])
+  assignedRoomId String?
+  assignedRoom Room? @relation(fields: [assignedRoomId], references: [id])
+  currencyCode String
+  subtotal Decimal @db.Decimal(18, 2)
+  total Decimal @db.Decimal(18, 2)
+  rateSnapshot Json
+  cancellationPolicySnapshot String?
+  depositPolicySnapshot String?
+  guaranteeStatus String @default("NOT_REQUIRED")
+  guaranteeMethod String?
+  depositStatus String @default("NOT_REQUIRED")
+  depositRequiredAmount Decimal @default(0) @db.Decimal(18, 2)
+  depositDueAt DateTime?
+  depositReference String?
+  specialRequestSummary String?
+  generalNotes String?
+  confirmedAt DateTime?
+  confirmedBy String?
+  cancelledAt DateTime?
+  cancelledBy String?
+  cancellationReason String?
+  cancellationPolicyResult Json?
+  noShowAt DateTime?
+  noShowBy String?
+  version Int @default(1)
+  createdBy String
+  updatedBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guests ReservationGuest[]
+  stays FrontDeskStay[]
+  rateDetails ReservationRateDetail[]
+  requests ReservationRequest[]
+  notes ReservationNote[]
+  history ReservationChange[]
+  guarantees ReservationGuarantee[]
+  audits ReservationAudit[]
+  @@unique([propertyId, reservationNumber])
+  @@index([tenantId, propertyId, status, arrivalDateTime])
+  @@index([propertyId, branchId, roomTypeId, arrivalDateTime, departureDateTime])
+  @@index([primaryGuestId, propertyId, arrivalDateTime])
+  @@index([externalReference, propertyId])
+  @@index([assignedRoomId, arrivalDateTime, departureDateTime])
+}
+
+model ReservationGuest {
+  id String @id @default(cuid())
+  reservationId String
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  guestId String?
+  guest Guest? @relation(fields: [guestId], references: [id])
+  guestNameSnapshot String
+  guestType String @default("ADULT")
+  age Int?
+  isPrimary Boolean @default(false)
+  @@index([reservationId])
+}
+
+model ReservationRateDetail {
+  id String @id @default(cuid())
+  reservationId String
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  stayDate DateTime @db.Date
+  durationMinutes Int?
+  baseRate Decimal @db.Decimal(18, 2)
+  occupancyCharge Decimal @default(0) @db.Decimal(18, 2)
+  extraBedCharge Decimal @default(0) @db.Decimal(18, 2)
+  discountAmount Decimal @default(0) @db.Decimal(18, 2)
+  serviceCharge Decimal @default(0) @db.Decimal(18, 2)
+  taxAmount Decimal @default(0) @db.Decimal(18, 2)
+  totalAmount Decimal @db.Decimal(18, 2)
+  rateSource String
+  snapshot Json
+  @@index([reservationId, stayDate])
+}
+
+model ReservationRequest {
+  id String @id @default(cuid())
+  reservationId String
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  requestType String
+  requestText String
+  status String @default("REQUESTED")
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([reservationId, status])
+}
+
+model ReservationNote {
+  id String @id @default(cuid())
+  reservationId String
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  noteType String @default("GENERAL")
+  text String
+  visibilityScope String @default("RESERVATION_TEAM")
+  createdBy String
+  createdAt DateTime @default(now())
+  @@index([reservationId, visibilityScope])
+}
+
+model ReservationChange {
+  id String @id @default(cuid())
+  reservationId String
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  action String
+  oldValue Json?
+  newValue Json?
+  reason String?
+  changedBy String
+  changedAt DateTime @default(now())
+  @@index([reservationId, changedAt])
+}
+
+model ReservationGuarantee {
+  id String @id @default(cuid())
+  reservationId String
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  guaranteeType String
+  status String
+  requiredAmount Decimal @default(0) @db.Decimal(18, 2)
+  dueAt DateTime?
+  reference String?
+  updatedBy String
+  createdAt DateTime @default(now())
+}
+
+model ReservationAudit {
+  id String @id @default(cuid())
+  reservationId String
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  tenantId String
+  propertyId String
+  branchId String
+  action String
+  oldValue Json?
+  newValue Json?
+  performedBy String
+  createdAt DateTime @default(now())
+  @@index([tenantId, propertyId, branchId, reservationId, createdAt])
+}
+
+
+model FrontDeskStay {
+  id String @id @default(cuid())
+  tenantId String
+  tenant BusinessGroup @relation(fields: [tenantId], references: [id])
+  companyId String
+  company Company @relation(fields: [companyId], references: [id])
+  propertyId String
+  property Property @relation(fields: [propertyId], references: [id])
+  branchId String
+  branch Branch @relation(fields: [branchId], references: [id])
+  reservationId String @unique
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  primaryGuestId String
+  primaryGuest Guest @relation(fields: [primaryGuestId], references: [id])
+  roomTypeId String
+  roomType RoomType @relation(fields: [roomTypeId], references: [id])
+  currentRoomId String?
+  currentRoom Room? @relation("StayCurrentRoom", fields: [currentRoomId], references: [id])
+  stayNumber String
+  stayType String
+  status String @default("IN_HOUSE")
+  plannedArrivalDateTime DateTime
+  plannedDepartureDateTime DateTime
+  actualCheckInDateTime DateTime
+  actualCheckOutDateTime DateTime?
+  adults Int @default(1)
+  children Int @default(0)
+  infants Int @default(0)
+  registrationConfirmed Boolean @default(false)
+  identityVerified Boolean @default(false)
+  lateArrivalExpectedAt DateTime?
+  lateArrivalNote String?
+  originalPlannedEndDateTime DateTime?
+  gracePeriodMinutes Int @default(0)
+  totalExtensionMinutes Int @default(0)
+  totalExtensionCharge Decimal @default(0) @db.Decimal(18, 2)
+  earlyCheckInReason String?
+  overrideReason String?
+  version Int @default(1)
+  createdBy String
+  updatedBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  occupants StayOccupant[]
+  roomHistory StayRoomHistory[]
+  extensions StayExtension[]
+  keys StayKey[]
+  notes StayNote[]
+  history StayStatusHistory[]
+  registrations GuestRegistration[]
+  @@unique([propertyId, stayNumber])
+  @@index([propertyId, branchId, status, plannedDepartureDateTime])
+  @@index([propertyId, branchId, plannedArrivalDateTime])
+  @@index([currentRoomId, status])
+}
+
+model StayOccupant {
+  id String @id @default(cuid())
+  stayId String
+  stay FrontDeskStay @relation(fields: [stayId], references: [id])
+  guestId String?
+  guest Guest? @relation(fields: [guestId], references: [id])
+  guestNameSnapshot String
+  occupantType String @default("ADULT")
+  age Int?
+  isPrimary Boolean @default(false)
+  identityVerified Boolean @default(false)
+  createdAt DateTime @default(now())
+  createdBy String
+  @@index([stayId])
+}
+
+model StayRoomHistory {
+  id String @id @default(cuid())
+  stayId String
+  stay FrontDeskStay @relation(fields: [stayId], references: [id])
+  fromRoomId String?
+  fromRoom Room? @relation("StayFromRoom", fields: [fromRoomId], references: [id])
+  toRoomId String
+  toRoom Room @relation("StayToRoom", fields: [toRoomId], references: [id])
+  effectiveDateTime DateTime
+  reason String
+  changedAt DateTime @default(now())
+  changedBy String
+  @@index([stayId, changedAt])
+}
+
+model StayExtension {
+  id String @id @default(cuid())
+  stayId String
+  stay FrontDeskStay @relation(fields: [stayId], references: [id])
+  oldDepartureDateTime DateTime
+  newDepartureDateTime DateTime
+  extensionType String
+  additionalAmount Decimal @default(0) @db.Decimal(18, 2)
+  rateReference Json?
+  reason String
+  approvedBy String?
+  createdAt DateTime @default(now())
+  createdBy String
+  @@index([stayId, createdAt])
+}
+
+model StayKey {
+  id String @id @default(cuid())
+  stayId String
+  stay FrontDeskStay @relation(fields: [stayId], references: [id])
+  roomId String
+  room Room @relation(fields: [roomId], references: [id])
+  keyIdentifier String
+  quantity Int @default(1)
+  status String @default("ISSUED")
+  issuedAt DateTime @default(now())
+  issuedBy String
+  returnedAt DateTime?
+  returnedBy String?
+  @@index([stayId, status])
+}
+
+model StayNote {
+  id String @id @default(cuid())
+  stayId String
+  stay FrontDeskStay @relation(fields: [stayId], references: [id])
+  noteType String @default("GENERAL")
+  noteText String
+  visibilityScope String @default("FRONT_DESK")
+  createdAt DateTime @default(now())
+  createdBy String
+  @@index([stayId, visibilityScope, createdAt])
+}
+
+model StayStatusHistory {
+  id String @id @default(cuid())
+  stayId String
+  stay FrontDeskStay @relation(fields: [stayId], references: [id])
+  previousStatus String?
+  newStatus String
+  reason String
+  changedAt DateTime @default(now())
+  changedBy String
+  @@index([stayId, changedAt])
+}
+
+model GuestRegistration {
+  id String @id @default(cuid())
+  stayId String
+  stay FrontDeskStay @relation(fields: [stayId], references: [id])
+  guestId String
+  guest Guest @relation(fields: [guestId], references: [id])
+  identityDocumentId String?
+  identityDocument GuestIdentity? @relation(fields: [identityDocumentId], references: [id])
+  addressSnapshot Json?
+  nationalitySnapshot String?
+  termsAccepted Boolean @default(false)
+  signatureReference String?
+  registeredAt DateTime @default(now())
+  registeredBy String
+  @@index([stayId, registeredAt])
+}
